@@ -22,23 +22,43 @@ This script:
   - exposes load_claims(), load_eligibility(), and load_all_data()
     for reuse by later transform/match/report scripts
 """
-
+# Import future annotation behavior so type hints are treated as strings internally.
+# This helps avoid circular type evaluation issues and keeps typing behavior modern.
 from __future__ import annotations
 
+
+# dataclass is used to create a lightweight structured object for returning
+# multiple datasets together in a clean and typed format.
 from dataclasses import dataclass
+
+# Path is used for safe and platform-independent filesystem path handling.
 from pathlib import Path
+
+# Iterable is used for typing collections of required column names.
 from typing import Iterable
 
+# Pandas is the core data-processing library used throughout this demo.
+# It handles CSV loading, validation, transformation, and reporting.
 import pandas as pd
 
 
+# Determine the repository root dynamically based on the location of this file.
+# This allows the script to work consistently regardless of where it is run from.
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+# Define the location of the input data directory.
 DATA_DIR = REPO_ROOT / "data"
 
+
+# Define the expected claims source file path.
 CLAIMS_FILE = DATA_DIR / "claims_raw.csv"
+
+# Define the expected eligibility source file path.
 ELIGIBILITY_FILE = DATA_DIR / "eligibility.csv"
 
 
+# Define the minimum required columns needed for claims processing.
+# These fields are validated before downstream transformation or reporting begins.
 CLAIMS_REQUIRED_COLUMNS = {
     "claim_id",
     "rx_number",
@@ -51,6 +71,9 @@ CLAIMS_REQUIRED_COLUMNS = {
     "prescriber_npi",
 }
 
+
+# Define the minimum required columns needed for eligibility processing.
+# These ensure the eligibility dataset contains the core matching fields.
 ELIGIBILITY_REQUIRED_COLUMNS = {
     "patient_id",
     "eligibility_start_date",
@@ -59,12 +82,17 @@ ELIGIBILITY_REQUIRED_COLUMNS = {
 }
 
 
+# Create a structured container object that groups claims and eligibility
+# DataFrames together into a single reusable object.
 @dataclass(frozen=True)
 class LoadedData:
     claims: pd.DataFrame
     eligibility: pd.DataFrame
 
 
+# Internal helper function used to safely read CSV files into pandas DataFrames.
+# All columns are loaded as strings so messy source formatting is preserved
+# for later cleaning and normalization steps.
 def _read_csv(path: Path) -> pd.DataFrame:
     """Read a CSV as strings so messy source data is preserved for cleaning later."""
     if not path.exists():
@@ -75,6 +103,9 @@ def _read_csv(path: Path) -> pd.DataFrame:
     return pd.read_csv(path, dtype=str, keep_default_na=False)
 
 
+# Internal helper function used to verify that all required columns exist
+# before downstream processing begins. This prevents later runtime failures
+# caused by missing source fields.
 def _validate_columns(df: pd.DataFrame, required_columns: Iterable[str], file_label: str) -> None:
     """Raise a clear error if a required input column is missing."""
     required = set(required_columns)
@@ -87,6 +118,8 @@ def _validate_columns(df: pd.DataFrame, required_columns: Iterable[str], file_la
         )
 
 
+# Load the raw claims dataset and validate its required schema.
+# This function serves as the primary claims loader for downstream scripts.
 def load_claims(path: Path | str = CLAIMS_FILE) -> pd.DataFrame:
     """Load raw claim data and validate minimum required columns."""
     claims = _read_csv(Path(path))
@@ -94,6 +127,8 @@ def load_claims(path: Path | str = CLAIMS_FILE) -> pd.DataFrame:
     return claims
 
 
+# Load the raw eligibility dataset and validate its required schema.
+# This function serves as the primary eligibility loader for downstream scripts.
 def load_eligibility(path: Path | str = ELIGIBILITY_FILE) -> pd.DataFrame:
     """Load eligibility data and validate minimum required columns."""
     eligibility = _read_csv(Path(path))
@@ -101,6 +136,8 @@ def load_eligibility(path: Path | str = ELIGIBILITY_FILE) -> pd.DataFrame:
     return eligibility
 
 
+# Load both source datasets together and package them into a single object.
+# This simplifies passing related datasets between scripts and functions.
 def load_all_data(
     claims_path: Path | str = CLAIMS_FILE,
     eligibility_path: Path | str = ELIGIBILITY_FILE,
@@ -112,6 +149,8 @@ def load_all_data(
     )
 
 
+# Generate a compact terminal summary of a DataFrame for quick inspection.
+# This is useful during onboarding, debugging, and ETL validation workflows.
 def summarize_dataframe(df: pd.DataFrame, label: str) -> None:
     """Print a simple terminal-friendly summary for onboarding demos."""
     print(f"\n{label}")
@@ -135,6 +174,8 @@ def summarize_dataframe(df: pd.DataFrame, label: str) -> None:
     print(df.head(5).to_string(index=False))
 
 
+# Main execution entrypoint for standalone script usage.
+# This loads both datasets and prints summaries for quick validation.
 def main() -> None:
     loaded = load_all_data()
 
@@ -144,5 +185,7 @@ def main() -> None:
     print("\nLoad complete.")
 
 
+# Standard Python script entrypoint check.
+# This ensures main() only runs when the file is executed directly.
 if __name__ == "__main__":
     main()

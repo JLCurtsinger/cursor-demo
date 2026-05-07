@@ -1,5 +1,14 @@
+# Ignore generated report/output files recreated during demo runs
 outputs/
+
+# Ignore Python bytecode cache directories
 __pycache__/
+
+# Ignore compiled Python bytecode files
 *.pyc
+
+# Ignore macOS Finder metadata files
 .DS_Store
+
+# Ignore local Python virtual environment directory
 .venv/

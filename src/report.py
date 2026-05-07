@@ -30,29 +30,58 @@ This script:
       outputs/report_summary.txt
 """
 
+# Import future annotation behavior so type hints are treated as strings internally.
+# This keeps type hints modern and avoids certain runtime evaluation issues.
 from __future__ import annotations
 
+
+# Path is used for safe, platform-independent filesystem path handling.
 from pathlib import Path
+
+# sys is used to temporarily add the src directory to Python's import path
+# so this script can import sibling modules when run directly.
 import sys
 
+# Pandas is used for loading cleaned CSVs, grouping data, counting flags,
+# summarizing metrics, and writing report outputs.
 import pandas as pd
 
 
+# Determine the repository root dynamically based on this file's location.
+# Because this file lives in src/, parents[1] points to the repo root.
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+# Define the source-code directory so sibling modules can be imported reliably.
 SRC_DIR = REPO_ROOT / "src"
+
+# Define the directory where transformed files and report outputs are stored.
 OUTPUT_DIR = REPO_ROOT / "outputs"
 
+
+# Add src/ to the Python import path when running this file directly.
+# This allows imports like "from load_data import ..." to work from repo root.
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+
+# Import the shared loading function so report.py can trigger a full load
+# if cleaned outputs do not already exist.
 from load_data import load_all_data
+
+# Import transform functions so report.py can create cleaned files automatically
+# before reporting if transform.py has not already been run.
 from transform import transform_all, write_outputs
 
 
+# Define the expected cleaned claims output created by transform.py.
 CLAIMS_CLEAN_FILE = OUTPUT_DIR / "claims_clean.csv"
+
+# Define the expected cleaned eligibility output created by transform.py.
 ELIGIBILITY_CLEAN_FILE = OUTPUT_DIR / "eligibility_clean.csv"
 
 
+# List claim-level boolean QA flags expected from transform.py.
+# These are counted later to summarize data quality issues.
 CLAIM_FLAG_COLUMNS = [
     "missing_patient_id",
     "missing_fill_date",
@@ -64,6 +93,9 @@ CLAIM_FLAG_COLUMNS = [
     "is_rejected",
 ]
 
+
+# List eligibility-level boolean QA flags expected from transform.py.
+# These are counted later to summarize eligibility data quality issues.
 ELIGIBILITY_FLAG_COLUMNS = [
     "missing_patient_id",
     "missing_eligibility_start_date",
@@ -73,6 +105,8 @@ ELIGIBILITY_FLAG_COLUMNS = [
 ]
 
 
+# Ensure transformed input files exist before report generation begins.
+# If the clean files are missing, this function runs the transform process first.
 def ensure_clean_outputs() -> None:
     """Create cleaned files if transform.py has not been run yet."""
     if CLAIMS_CLEAN_FILE.exists() and ELIGIBILITY_CLEAN_FILE.exists():
@@ -84,6 +118,8 @@ def ensure_clean_outputs() -> None:
     write_outputs(transformed)
 
 
+# Load the cleaned claims and eligibility files from outputs/.
+# This function guarantees those files exist by calling ensure_clean_outputs().
 def load_clean_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     """Load transformed claims and eligibility files."""
     ensure_clean_outputs()
@@ -94,6 +130,8 @@ def load_clean_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     return claims, eligibility
 
 
+# Count how many rows have true values for each configured QA flag column.
+# This converts string-like boolean values back into true/false checks.
 def count_true_values(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     """Count boolean-like true values for selected flag columns."""
     rows = []
@@ -115,6 +153,8 @@ def count_true_values(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+# Build a simple claim-volume summary by pharmacy.
+# This helps demonstrate how reporting can aggregate transformed claims.
 def summarize_pharmacy_activity(claims: pd.DataFrame) -> pd.DataFrame:
     """Summarize claim volume by pharmacy."""
     if "pharmacy_name" not in claims.columns:
@@ -130,6 +170,8 @@ def summarize_pharmacy_activity(claims: pd.DataFrame) -> pd.DataFrame:
     return summary
 
 
+# Build a payer-level summary with claim counts and financial rollups.
+# This function includes fallback mappings for the demo CSV schema.
 def summarize_payer_activity(claims: pd.DataFrame) -> pd.DataFrame:
     """Summarize claim volume and financial fields by payer."""
     working = claims.copy()
@@ -179,6 +221,8 @@ def summarize_payer_activity(claims: pd.DataFrame) -> pd.DataFrame:
     return summary.sort_values("claim_count", ascending=False)
 
 
+# Calculate high-level row and patient counts for the report.
+# These metrics give a quick view of claim volume and eligibility coverage.
 def calculate_basic_metrics(claims: pd.DataFrame, eligibility: pd.DataFrame) -> dict[str, int]:
     """Calculate simple high-level metrics."""
     unique_claim_patients = (
@@ -207,6 +251,8 @@ def calculate_basic_metrics(claims: pd.DataFrame, eligibility: pd.DataFrame) -> 
     }
 
 
+# Assemble the plain-text report body from metrics and summary tables.
+# This output is designed to be easy to read in the terminal or Cursor.
 def build_text_report(
     metrics: dict[str, int],
     claim_quality: pd.DataFrame,
@@ -288,6 +334,8 @@ def build_text_report(
     return "\n".join(lines) + "\n"
 
 
+# Write all report artifacts to the outputs directory.
+# This creates CSV summaries plus a plain-text report for review.
 def write_report_outputs(
     claim_quality: pd.DataFrame,
     eligibility_quality: pd.DataFrame,
@@ -310,6 +358,8 @@ def write_report_outputs(
     (OUTPUT_DIR / "report_summary.txt").write_text(text_report, encoding="utf-8")
 
 
+# Main execution entrypoint for standalone script usage.
+# This loads clean data, builds summaries, writes report files, and prints the report.
 def main() -> None:
     claims, eligibility = load_clean_data()
 
@@ -339,5 +389,7 @@ def main() -> None:
     print("Wrote report outputs to outputs/.")
 
 
+# Standard Python script entrypoint check.
+# This ensures main() only runs when report.py is executed directly.
 if __name__ == "__main__":
     main()

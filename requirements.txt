@@ -1,1 +1,2 @@
+# Pandas dependency is used for CSV loading, transformation, reporting, and date parsing
 pandas>=1.5,<3

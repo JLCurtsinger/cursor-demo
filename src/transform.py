@@ -28,37 +28,70 @@ This script:
   - writes cleaned CSV outputs to outputs/
 """
 
+# Import future annotation behavior so type hints are treated as strings internally.
+# This keeps type hints modern and avoids certain runtime evaluation issues.
 from __future__ import annotations
 
+
+# Path is used for safe, platform-independent filesystem path handling.
 from pathlib import Path
+
+# re is used for regular expression cleanup, especially NDC digit normalization.
 import re
+
+# sys is used to temporarily add src/ to Python's import path
+# so this file can import sibling modules when run directly.
 import sys
+
+# Iterable is used for typing lists of column names passed into helper functions.
 from typing import Iterable
 
+# Pandas is the core data-processing library used for cleaning, parsing,
+# transforming, validating, and writing CSV outputs.
 import pandas as pd
 
 
+# Determine the repository root dynamically based on this file's location.
+# Because this file lives in src/, parents[1] points to the repo root.
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+# Define the source-code directory so sibling modules can be imported reliably.
 SRC_DIR = REPO_ROOT / "src"
+
+# Define the directory where transformed CSV outputs will be written.
 OUTPUT_DIR = REPO_ROOT / "outputs"
 
+
+# Add src/ to the Python import path when running this file directly.
+# This allows imports like "from load_data import ..." to work from repo root.
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+
+# Import the shared LoadedData container and raw data loader from load_data.py.
+# This keeps file loading centralized in one script.
 from load_data import LoadedData, load_all_data
 
 
+# Define claim date columns that should be normalized when present.
+# Any listed column that is not present is skipped safely.
 DATE_COLUMNS_CLAIMS = [
     "fill_date",
     "written_date",
 ]
 
+
+# Define eligibility date columns that should be normalized when present.
+# These dates are important for later matching and eligibility-window checks.
 DATE_COLUMNS_ELIGIBILITY = [
     "eligibility_start_date",
     "eligibility_end_date",
     "last_verified_date",
 ]
 
+
+# Define claim numeric columns that should be converted from strings to numbers.
+# This allows later reporting to calculate totals and financial rollups.
 NUMERIC_COLUMNS_CLAIMS = [
     "quantity",
     "days_supply",
@@ -70,6 +103,8 @@ NUMERIC_COLUMNS_CLAIMS = [
 ]
 
 
+# Clean all text-like columns by trimming whitespace and converting common
+# placeholder null values into empty strings.
 def clean_string_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Trim whitespace and convert obvious placeholder nulls to empty strings."""
     cleaned = df.copy()
@@ -92,6 +127,8 @@ def clean_string_columns(df: pd.DataFrame) -> pd.DataFrame:
     return cleaned
 
 
+# Parse a pandas Series containing mixed-format dates into standardized
+# YYYY-MM-DD strings. Invalid or blank dates become empty strings.
 def parse_date_series(series: pd.Series) -> pd.Series:
     """Parse mixed-format source dates into ISO YYYY-MM-DD strings."""
     values = series.replace("", pd.NA)
@@ -102,6 +139,8 @@ def parse_date_series(series: pd.Series) -> pd.Series:
     return parsed.dt.strftime("%Y-%m-%d").fillna("")
 
 
+# Normalize selected date columns while preserving their original raw values
+# in companion *_raw columns for traceability.
 def normalize_date_columns(df: pd.DataFrame, date_columns: Iterable[str]) -> pd.DataFrame:
     """Normalize selected date columns when they are present."""
     cleaned = df.copy()
@@ -116,6 +155,8 @@ def normalize_date_columns(df: pd.DataFrame, date_columns: Iterable[str]) -> pd.
     return cleaned
 
 
+# Normalize NDC-like values by stripping non-digits and padding short values.
+# This creates a consistent 11-digit format for downstream checks.
 def normalize_ndc(value: str) -> str:
     """
     Normalize NDC-like values to 11 digits when possible.
@@ -137,6 +178,8 @@ def normalize_ndc(value: str) -> str:
     return digits
 
 
+# Convert selected numeric columns from messy strings into numeric values.
+# Currency symbols and commas are removed before conversion.
 def normalize_numeric_columns(df: pd.DataFrame, numeric_columns: Iterable[str]) -> pd.DataFrame:
     """Convert selected numeric columns to numeric values when present."""
     cleaned = df.copy()
@@ -155,6 +198,8 @@ def normalize_numeric_columns(df: pd.DataFrame, numeric_columns: Iterable[str]) 
     return cleaned
 
 
+# Add claim-level data quality flags used by report.py.
+# These flags make missing values, invalid NDCs, reversals, and rejected claims visible.
 def add_claim_quality_flags(claims: pd.DataFrame) -> pd.DataFrame:
     """Add row-level flags that make demo validation easier."""
     cleaned = claims.copy()
@@ -188,6 +233,9 @@ def add_claim_quality_flags(claims: pd.DataFrame) -> pd.DataFrame:
     return cleaned
 
 
+# Add eligibility-level data quality flags used by report.py.
+# These flags identify missing patient IDs, missing starts, open-ended records,
+# inactive or pending statuses, and invalid date ranges.
 def add_eligibility_quality_flags(eligibility: pd.DataFrame) -> pd.DataFrame:
     """Add row-level flags for eligibility data-quality review."""
     cleaned = eligibility.copy()
@@ -207,6 +255,9 @@ def add_eligibility_quality_flags(eligibility: pd.DataFrame) -> pd.DataFrame:
     return cleaned
 
 
+# Clean and normalize raw claim records end-to-end.
+# This applies string cleanup, date normalization, NDC normalization, numeric conversion,
+# downstream reporting aliases, duplicate removal, and claim QA flags.
 def transform_claims(claims: pd.DataFrame) -> pd.DataFrame:
     """Clean and normalize raw claims."""
     cleaned = clean_string_columns(claims)
@@ -237,6 +288,8 @@ def transform_claims(claims: pd.DataFrame) -> pd.DataFrame:
     return cleaned
 
 
+# Clean and normalize raw eligibility records end-to-end.
+# This applies string cleanup, date normalization, and eligibility QA flags.
 def transform_eligibility(eligibility: pd.DataFrame) -> pd.DataFrame:
     """Clean and normalize raw eligibility records."""
     cleaned = clean_string_columns(eligibility)
@@ -245,6 +298,8 @@ def transform_eligibility(eligibility: pd.DataFrame) -> pd.DataFrame:
     return cleaned
 
 
+# Transform claims and eligibility together while preserving the shared LoadedData
+# structure used across the demo scripts.
 def transform_all(data: LoadedData) -> LoadedData:
     """Transform claims and eligibility together."""
     return LoadedData(
@@ -253,6 +308,8 @@ def transform_all(data: LoadedData) -> LoadedData:
     )
 
 
+# Print compact data-quality counts to the terminal.
+# This gives quick feedback before writing transformed CSV outputs.
 def print_quality_summary(claims: pd.DataFrame, eligibility: pd.DataFrame) -> None:
     """Print compact issue counts for terminal review."""
     claim_flags = [
@@ -293,6 +350,8 @@ def print_quality_summary(claims: pd.DataFrame, eligibility: pd.DataFrame) -> No
             print(f"{flag}: {int(eligibility[flag].sum()):,}")
 
 
+# Write transformed claims and eligibility datasets to outputs/.
+# These cleaned files are then consumed by report.py.
 def write_outputs(transformed: LoadedData) -> None:
     """Write transformed datasets to the outputs directory."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -309,6 +368,8 @@ def write_outputs(transformed: LoadedData) -> None:
     print(eligibility_output)
 
 
+# Main execution entrypoint for standalone script usage.
+# This loads raw data, transforms both datasets, prints QA counts, and writes outputs.
 def main() -> None:
     raw = load_all_data()
     transformed = transform_all(raw)
@@ -319,5 +380,7 @@ def main() -> None:
     print("\nTransform complete.")
 
 
+# Standard Python script entrypoint check.
+# This ensures main() only runs when transform.py is executed directly.
 if __name__ == "__main__":
     main()
