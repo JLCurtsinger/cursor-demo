@@ -1,3 +1,7 @@
+# Ignore raw onboarding/demo source data
+
+data/
+
 # Ignore generated report/output files recreated during demo runs
 outputs/
 
